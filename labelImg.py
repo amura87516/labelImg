@@ -93,6 +93,8 @@ class MainWindow(QMainWindow, WindowMixin):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
+        self.fileListCnt = 0
+
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -261,6 +263,8 @@ class MainWindow(QMainWindow, WindowMixin):
                         'w', 'new', u'Draw a new Box', enabled=False)
         delete = action('Delete\nRectBox', self.deleteSelectedShape,
                         'Delete', 'delete', u'Delete', enabled=False)
+        delete2 = action('Delete\nThis Data', self.deleteImgAndLable,
+                        'Delete2', 'delete', u'Delete2', enabled=True)
         copy = action('&Duplicate\nRectBox', self.copySelectedShape,
                       'Ctrl+D', 'copy', u'Create a duplicate of the selected Box',
                       enabled=False)
@@ -407,7 +411,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, verify, save, save_format, None, create, copy, delete, None,
+            open, opendir, changeSavedir, openNextImg, openPrevImg, verify, save, save_format, None, create, copy, delete, delete2, None,
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
@@ -1168,7 +1172,7 @@ class MainWindow(QMainWindow, WindowMixin):
             if filename:
                 if isinstance(filename, (tuple, list)):
                     filename = filename[0]
-            self.loadPascalXMLByFilename(filename)
+            self.loadPascalXMLByFilename('filename')
 
     def openDirDialog(self, _value=False, dirpath=None):
         if not self.mayContinue():
@@ -1184,7 +1188,9 @@ class MainWindow(QMainWindow, WindowMixin):
                                                      '%s - Open Directory' % __appname__, defaultOpenDirPath,
                                                      QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
         self.importDirImages(targetDirPath)
-
+        if self.fileListWidget.count():
+            self.fileListWidget.setCurrentItem(self.fileListWidget.item(self.fileListCnt-1))
+            self.fileListWidget.item(self.fileListCnt-1).setSelected(True)
     def importDirImages(self, dirpath):
         if not self.mayContinue() or not dirpath:
             return
@@ -1242,6 +1248,14 @@ class MainWindow(QMainWindow, WindowMixin):
             filename = self.mImgList[currIndex - 1]
             if filename:
                 self.loadFile(filename)
+                # self.loadPascalXMLByFilename(filename.replace('jpg','xml').replace('JPEGImages','annotations_xml'))
+                self.usingPascalVocFormat = False
+                self.usingYoloFormat = True 
+                self.fileListCnt -= 1
+                if self.fileListWidget.count():
+                    self.fileListWidget.setCurrentItem(self.fileListWidget.item(self.fileListCnt-1))
+                    self.fileListWidget.item(self.fileListCnt-1).setSelected(True)
+
 
     def openNextImg(self, _value=False):
         # Proceding prev image without dialog if having any label
@@ -1269,6 +1283,13 @@ class MainWindow(QMainWindow, WindowMixin):
 
         if filename:
             self.loadFile(filename)
+            # self.loadPascalXMLByFilename(filename.replace('jpg','xml').replace('JPEGImages','annotations_xml'))
+            self.usingPascalVocFormat = False
+            self.usingYoloFormat = True 
+            self.fileListCnt += 1
+            if self.fileListWidget.count():
+                self.fileListWidget.setCurrentItem(self.fileListWidget.item(self.fileListCnt-1))
+                self.fileListWidget.item(self.fileListCnt-1).setSelected(True)
 
     def openFile(self, _value=False):
         if not self.mayContinue():
@@ -1281,6 +1302,9 @@ class MainWindow(QMainWindow, WindowMixin):
             if isinstance(filename, (tuple, list)):
                 filename = filename[0]
             self.loadFile(filename)
+            if self.fileListWidget.count():
+                self.fileListWidget.setCurrentItem(self.fileListWidget.item(self.fileListCnt-1))
+                self.fileListWidget.item(self.fileListCnt-1).setSelected(True)
 
     def saveFile(self, _value=False):
         if self.defaultSaveDir is not None and len(ustr(self.defaultSaveDir)):
@@ -1368,6 +1392,32 @@ class MainWindow(QMainWindow, WindowMixin):
         if self.noShapes():
             for action in self.actions.onShapesPresent:
                 action.setEnabled(False)
+    
+    def deleteImgAndLable(self):
+        basename = os.path.basename(
+            os.path.splitext(self.filePath)[0])
+        txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
+        # test = self.fileListWidget.currentItem()
+        img = self.fileListWidget.row(self.fileListWidget.currentItem())
+        imgPath = self.filePath
+        # print(self.filePath)
+        # print(txtPath)
+        # print(self.currentPath())
+        if self.fileListCnt < self.fileListWidget.count():
+            self.openNextImg()
+        else:
+            self.openPrevImg()
+
+        # self.labelList.takeItem(lable)
+        self.mImgList.pop(self.mImgList.index(imgPath))
+        self.fileListWidget.takeItem(img)
+
+        # self.mImgList.takeItem(self.mImgList.row(self.mImgList.currentItem()))
+        
+        # self.filePath = self.currentItem
+        
+        os.remove(imgPath)
+        os.remove(txtPath)
 
     def chshapeLineColor(self):
         color = self.colorDialog.getColor(self.lineColor, u'Choose line color',
